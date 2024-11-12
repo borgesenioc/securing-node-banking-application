@@ -3,6 +3,7 @@ const express = require("express");
 const session = require("express-session");
 const path = require("path");
 const fs = require("fs");
+const helmet = require("helmet");
 
 const db = new sqlite3.Database("./bank_sample.db");
 
@@ -16,6 +17,11 @@ app.use(
     secret: "secret",
     resave: true,
     saveUninitialized: true,
+    cookie: {
+      httpOnly: true,
+      secure: true,
+      samesite: 'lax'
+    }
   })
 );
 
@@ -25,6 +31,12 @@ app.use(express.json());
 app.get("/", function (request, response) {
   response.sendFile(path.join(__dirname + "/html/login.html"));
 });
+
+app.use(helmet());
+
+app.use(helmet({
+  contentSecurityPolicy: false, 
+}));
 
 //LOGIN SQL
 app.post("/auth", function (request, response) {
