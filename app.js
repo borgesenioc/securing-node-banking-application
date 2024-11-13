@@ -190,13 +190,14 @@ app.post(
   if (request.session.loggedin) {
     const errors = validationResult(request);
     if (!errors.isEmpty()) {
-      return response.status(400.render("forum", { errors: errors.array() });)
+      return response.status(400).render("forum", { errors: errors.array() });
     }
-    var comment = check(request.body.comment);
+    var comment = request.body.comment;
     var username = request.session.username;
     if (comment) {
       db.all(
-        `INSERT INTO public_forum (username,message) VALUES ('${username}','${comment}')`,
+        `INSERT INTO public_forum (username,message) VALUES (?, ?)`,
+        [ username, comment ],
         (err, rows) => {
           console.log(err);
         }
@@ -224,10 +225,11 @@ app.post(
 //SQL UNION INJECTION
 app.get("/public_ledger", function (request, response) {
   if (request.session.loggedin) {
-    var id = request.query.id;
+    var id = parseInt(request.query.id, 10);
     if (id) {
       db.all(
-        `SELECT * FROM public_ledger WHERE from_account = '${id}'`,
+        `SELECT * FROM public_ledger WHERE from_account = ?`,
+        [ id ],
         (err, rows) => {
           console.log("PROCESSING INPU");
           console.log(err);
