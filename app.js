@@ -45,7 +45,8 @@ app.post("/auth", function (request, response) {
   var password = request.body.password;
   if (username && password) {
     db.get(
-      `SELECT * FROM users WHERE username = '${request.body.username}' AND password = '${request.body.password}'`,
+      `SELECT * FROM users WHERE username = ? AND password = ?`,
+      [username, password],
       function (error, results) {
         console.log(error);
         console.log(results);
