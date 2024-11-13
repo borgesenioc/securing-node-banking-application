@@ -34,12 +34,11 @@ app.get("/", function (request, response) {
 });
 
 app.use(helmet());
-
 app.use(helmet({
-  contentSecurityPolicy: false, 
+  contentSecurityPolicy: false,
 }));
 
-//LOGIN SQL
+// LOGIN SQL
 app.post("/auth", function (request, response) {
   var username = request.body.username;
   var password = request.body.password;
@@ -69,11 +68,11 @@ app.post("/auth", function (request, response) {
   }
 });
 
-//Home Menu No Exploits Here.
+// Home Menu No Exploits Here.
 app.get("/home", function (request, response) {
   if (request.session.loggedin) {
-    username = request.session.username;
-    balance = request.session.balance;
+    const username = request.session.username;
+    const balance = request.session.balance;
     response.render("home_page", { username, balance });
   } else {
     response.redirect("/");
@@ -81,46 +80,47 @@ app.get("/home", function (request, response) {
   response.end();
 });
 
-//CSRF CODE SECURED. SEE HEADERS SET ABOVE
+// CSRF CODE SECURED. SEE HEADERS SET ABOVE
 app.get("/transfer", function (request, response) {
   if (request.session.loggedin) {
-    var sent = "";
+    const sent = "";
     response.render("transfer", { sent });
   } else {
     response.redirect("/");
   }
 });
 
-//CSRF CODE
 app.post("/transfer", function (request, response) {
   if (request.session.loggedin) {
     console.log("Transfer in progress");
-    var balance = request.session.balance;
-    var account_to = parseInt(request.body.account_to);
-    var amount = parseInt(request.body.amount);
-    var account_from = request.session.account_no;
+    const balance = request.session.balance;
+    const account_to = parseInt(request.body.account_to);
+    const amount = parseInt(request.body.amount);
+    const account_from = request.session.account_no;
     if (account_to && amount) {
       if (balance > amount) {
         db.get(
-          `UPDATE users SET balance = balance + ${amount} WHERE account_no = ${account_to}`,
-          function (error, results) {
+          `UPDATE users SET balance = balance + ? WHERE account_no = ?`,
+          [amount, account_to],
+          function (error) {
             console.log(error);
-            console.log(results);
           }
         );
         db.get(
-          `UPDATE users SET balance = balance - ${amount} WHERE account_no = ${account_from}`,
-          function (error, results) {
-            var sent = "Money Transfered";
+          `UPDATE users SET balance = balance - ? WHERE account_no = ?`,
+          [amount, account_from],
+          function (error) {
+            console.log(error);
+            const sent = "Money Transferred";
             response.render("transfer", { sent });
           }
         );
       } else {
-        var sent = "You Don't Have Enough Funds.";
+        const sent = "You Don't Have Enough Funds.";
         response.render("transfer", { sent });
       }
     } else {
-      var sent = "";
+      const sent = "";
       response.render("transfer", { sent });
     }
   } else {
@@ -128,29 +128,28 @@ app.post("/transfer", function (request, response) {
   }
 });
 
-//PATH TRAVERSAL CODE
-app.get("/download", function (request, response) {
-  if (request.session.loggedin) {
-    file_name = request.session.file_history;
-    response.render("download", { file_name });
-  } else {
-    response.redirect("/");
-  }
-  response.end();
-});
-
+// PATH TRAVERSAL PROTECTION
 app.post("/download", function (request, response) {
   if (request.session.loggedin) {
-    var file_name = request.body.file;
+    const file_name = request.body.file;
 
-    response.statusCode = 200;
-    response.setHeader("Content-Type", "text/html");
+    // Setting the root directory path
+    const root_directory = path.join(__dirname, "history_files");
 
-    // Change the filePath to current working directory using the "path" method
-    const filePath = "history_files/" + file_name;
-    console.log(filePath);
+    // Creating and normalizing the file path
+    const filePath = path.join(root_directory, file_name);
+    const normalizedPath = path.normalize(filePath);
+
+    // Ensuring the file is within the root directory
+    if (!normalizedPath.startsWith(root_directory + path.sep)) {
+      response.end("File not found");
+      return;
+    }
+
     try {
-      content = fs.readFileSync(filePath, "utf8");
+      // Reading and serving the file content
+      const content = fs.readFileSync(normalizedPath, "utf8");
+      response.status(200).setHeader("Content-Type", "text/html");
       response.end(content);
     } catch (err) {
       console.log(err);
@@ -159,13 +158,12 @@ app.post("/download", function (request, response) {
   } else {
     response.redirect("/");
   }
-  response.end();
 });
 
-//XSS CODE
+// XSS CODE
 app.get("/public_forum", function (request, response) {
   if (request.session.loggedin) {
-    db.all(`SELECT username,message FROM public_forum`, (err, rows) => {
+    db.all(`SELECT username, message FROM public_forum`, (err, rows) => {
       console.log(rows);
       console.log(err);
       response.render("forum", { rows });
@@ -173,65 +171,61 @@ app.get("/public_forum", function (request, response) {
   } else {
     response.redirect("/");
   }
-  //response.end();
 });
 
 app.post(
   "/public_forum",
   [
     check('comment')
-    .trim()
-    .escape()
-    .notEmpty().withMessage('Comment cannot be empty')
-    .isLength({ max: 500 }).withMessage('Comment cannot exceed 500 characters')
-
+      .trim()
+      .escape()
+      .notEmpty().withMessage('Comment cannot be empty')
+      .isLength({ max: 500 }).withMessage('Comment cannot exceed 500 characters')
   ],
   function (request, response) {
-  if (request.session.loggedin) {
-    const errors = validationResult(request);
-    if (!errors.isEmpty()) {
-      return response.status(400).render("forum", { errors: errors.array() });
-    }
-    var comment = request.body.comment;
-    var username = request.session.username;
-    if (comment) {
-      db.all(
-        `INSERT INTO public_forum (username,message) VALUES (?, ?)`,
-        [ username, comment ],
-        (err, rows) => {
+    if (request.session.loggedin) {
+      const errors = validationResult(request);
+      if (!errors.isEmpty()) {
+        return response.status(400).render("forum", { errors: errors.array() });
+      }
+      const comment = request.body.comment;
+      const username = request.session.username;
+      if (comment) {
+        db.all(
+          `INSERT INTO public_forum (username, message) VALUES (?, ?)`,
+          [username, comment],
+          (err) => {
+            console.log(err);
+          }
+        );
+        db.all(`SELECT username, message FROM public_forum`, (err, rows) => {
+          console.log(rows);
           console.log(err);
-        }
-      );
-      db.all(`SELECT username,message FROM public_forum`, (err, rows) => {
-        console.log(rows);
-        console.log(err);
-        response.render("forum", { rows });
-      });
+          response.render("forum", { rows });
+        });
+      } else {
+        db.all(`SELECT username, message FROM public_forum`, (err, rows) => {
+          console.log(rows);
+          console.log(err);
+          response.render("forum", { rows });
+        });
+      }
     } else {
-      db.all(`SELECT username,message FROM public_forum`, (err, rows) => {
-        console.log(rows);
-        console.log(err);
-        response.render("forum", { rows });
-      });
+      response.redirect("/");
     }
-    comment = "";
-  } else {
-    response.redirect("/");
   }
-  comment = "";
-  //response.end();
-});
+);
 
-//SQL UNION INJECTION
+// SQL UNION INJECTION PROTECTION
 app.get("/public_ledger", function (request, response) {
   if (request.session.loggedin) {
-    var id = parseInt(request.query.id, 10);
+    const id = parseInt(request.query.id, 10);
     if (id) {
       db.all(
         `SELECT * FROM public_ledger WHERE from_account = ?`,
-        [ id ],
+        [id],
         (err, rows) => {
-          console.log("PROCESSING INPU");
+          console.log("PROCESSING INPUT");
           console.log(err);
           if (rows) {
             response.render("ledger", { rows });
@@ -252,7 +246,6 @@ app.get("/public_ledger", function (request, response) {
   } else {
     response.redirect("/");
   }
-  //response.end();
 });
 
 app.listen(PORT, () => {
