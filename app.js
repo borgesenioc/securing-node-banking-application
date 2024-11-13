@@ -4,6 +4,7 @@ const session = require("express-session");
 const path = require("path");
 const fs = require("fs");
 const helmet = require("helmet");
+const { check, validationResult } = require("express-validator");
 
 const db = new sqlite3.Database("./bank_sample.db");
 
@@ -174,9 +175,23 @@ app.get("/public_forum", function (request, response) {
   //response.end();
 });
 
-app.post("/public_forum", function (request, response) {
+app.post(
+  "/public_forum",
+  [
+    check('comment')
+    .trim()
+    .escape()
+    .notEmpty().withMessage('Comment cannot be empty')
+    .isLength({ max: 500 }).withMessage('Comment cannot exceed 500 characters')
+
+  ],
+  function (request, response) {
   if (request.session.loggedin) {
-    var comment = request.body.comment;
+    const errors = validationResult(request);
+    if (!errors.isEmpty()) {
+      return response.status(400.render("forum", { errors: errors.array() });)
+    }
+    var comment = check(request.body.comment);
     var username = request.session.username;
     if (comment) {
       db.all(
